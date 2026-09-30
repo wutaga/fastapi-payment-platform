@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -18,3 +19,7 @@ class PaymentResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     processed_at: datetime | None
+
+
+class PaymentProcess(BaseModel):
+    status: Literal["succeeded", "failed"]
