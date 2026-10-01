@@ -33,7 +33,11 @@ def db():
 @pytest.fixture()
 def client(db):
     def override_get_db():
-        yield db
+        try:
+            yield db
+        except Exception:
+            db.rollback()
+            raise
 
     app.dependency_overrides[get_db] = override_get_db
 

@@ -80,3 +80,46 @@ def test_process_payment_already_processed_returns_409(
 
     assert second_process_response.status_code == 409
     assert second_process_response.json() == {"detail": "Payment is already processed"}
+
+
+def test_process_payment_to_unknown_status(
+    client: TestClient,
+    api_key: ApiKey,
+):
+    _ = api_key
+
+    create_response: httpx.Response = client.post(
+        "/api/v1/payments",
+        headers={"Authorization": "Bearer test_api_key"},
+        json={
+            "merchant_order_id": "order_process_unknown",
+            "amount_kopecks": 5000,
+            "description": "test_unknown_status",
+        },
+    )
+    created_payment = create_response.json()
+    payment_id = created_payment["id"]
+
+    process_response: httpx.Response = client.post(
+        f"/internal/payments/{payment_id}/process",
+        json={"status": "unknown"},
+    )
+    processed_payment = process_response.json()
+
+    assert create_response.status_code == 200
+    assert created_payment["status"] == "pending"
+
+    assert process_response.status_code == 422
+    assert processed_payment["detail"][0]["loc"] == ["body", "status"]
+    assert processed_payment["detail"][0]["type"] == "literal_error"
+
+
+def test_process_payment_nonexistent_payment_returns_404(client: TestClient):
+    process_response: httpx.Response = client.post(
+        "/internal/payments/999999/process",
+        json={"status": "succeeded"},
+    )
+    processed_payment = process_response.json()
+
+    assert process_response.status_code == 404
+    assert processed_payment == {"detail": "Payment not found"}
