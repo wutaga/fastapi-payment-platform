@@ -8,7 +8,6 @@ from app.db.dependencies import get_db
 from app.models import Payment
 from app.schemas.payment import PaymentProcess, PaymentResponse
 
-
 router = APIRouter(prefix="/payments", tags=["internal-payments"])
 
 
@@ -27,7 +26,7 @@ def process_payment_test(
 
     if payment.status != "pending":
         raise HTTPException(status_code=409, detail="Payment is already processed")
-    
+
     payment.status = payload.status
     payment.processed_at = datetime.now(UTC)
     db.commit()

@@ -18,5 +18,5 @@ class Organization(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255))
 
-    api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="organization")
-    payments: Mapped[list["Payment"]] = relationship(back_populates="organization")
+    api_keys: Mapped[list[ApiKey]] = relationship(back_populates="organization")
+    payments: Mapped[list[Payment]] = relationship(back_populates="organization")

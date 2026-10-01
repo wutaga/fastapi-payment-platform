@@ -25,4 +25,3 @@ def health_db(db: Session = Depends(get_db)) -> dict[str, str]:
     except SQLAlchemyError as exc:
         raise HTTPException(status_code=503, detail="Service unavailable") from exc
     return {"database": "ok"}
-

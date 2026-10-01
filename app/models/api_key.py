@@ -21,5 +21,5 @@ class ApiKey(Base):
     secret_hash: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(default=True)
 
-    organization: Mapped["Organization"] = relationship(back_populates="api_keys")
-    payments: Mapped[list["Payment"]] = relationship(back_populates="api_key")
+    organization: Mapped[Organization] = relationship(back_populates="api_keys")
+    payments: Mapped[list[Payment]] = relationship(back_populates="api_key")

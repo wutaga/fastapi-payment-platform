@@ -9,8 +9,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
-    from app.models.organization import Organization
     from app.models.api_key import ApiKey
+    from app.models.organization import Organization
 
 
 class Payment(Base):
@@ -42,5 +42,5 @@ class Payment(Base):
     )
     processed_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
-    organization: Mapped["Organization"] = relationship(back_populates="payments")
-    api_key: Mapped["ApiKey"] = relationship(back_populates="payments")
+    organization: Mapped[Organization] = relationship(back_populates="payments")
+    api_key: Mapped[ApiKey] = relationship(back_populates="payments")

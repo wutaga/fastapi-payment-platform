@@ -7,7 +7,6 @@ from app.db.dependencies import get_db
 from app.models import ApiKey, Payment
 from app.schemas.payment import PaymentCreate, PaymentResponse
 
-
 router = APIRouter(prefix="/payments", tags=["payments"])
 
 

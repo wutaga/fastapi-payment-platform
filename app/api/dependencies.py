@@ -7,7 +7,6 @@ from app.db.dependencies import get_db
 from app.models import ApiKey
 from app.security.api_keys import hash_api_key
 
-
 security = HTTPBearer()
 
 
