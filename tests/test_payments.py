@@ -137,3 +137,89 @@ def test_create_payment_duplicate_same_merchant_order_id_but_different_amount(
     assert response_1.status_code == 200
     assert response_2.status_code == 409
     assert response_2.json() == {"detail": "Payment already exists with different data"}
+
+
+def test_get_payment_by_id_success(client: TestClient, api_key: ApiKey):
+    _ = api_key
+
+    create_response: httpx.Response = client.post(
+        "/api/v1/payments",
+        headers={"Authorization": "Bearer test_api_key"},
+        json={
+            "merchant_order_id": "order_get_by_id",
+            "amount_kopecks": 150000,
+            "description": "get by id test",
+        },
+    )
+
+    payment_id = create_response.json()["id"]
+
+    get_response: httpx.Response = client.get(
+        f"/api/v1/payments/{payment_id}",
+        headers={"Authorization": "Bearer test_api_key"},
+    )
+
+    body = get_response.json()
+
+    assert create_response.status_code == 200
+    assert get_response.status_code == 200
+    assert body["id"] == payment_id
+    assert body["merchant_order_id"] == "order_get_by_id"
+    assert body["amount_kopecks"] == 150000
+    assert body["status"] == "pending"
+    assert body["description"] == "get by id test"
+
+
+def test_get_payment_by_id_not_found(client: TestClient, api_key: ApiKey):
+    _ = api_key
+
+    response: httpx.Response = client.get(
+        "/api/v1/payments/999999",
+        headers={"Authorization": "Bearer test_api_key"},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Payment not found"}
+
+
+def test_get_payment_by_merchant_order_id_success(client: TestClient, api_key: ApiKey):
+    _ = api_key
+
+    merchant_order_id = "12345"
+
+    create_response: httpx.Response = client.post(
+        "/api/v1/payments",
+        headers={"Authorization": "Bearer test_api_key"},
+        json={
+            "merchant_order_id": merchant_order_id,
+            "amount_kopecks": 1600000,
+            "description": "get by merchant order id",
+        },
+    )
+
+    response: httpx.Response = client.get(
+        f"/api/v1/payments/by-order/{merchant_order_id}",
+        headers={"Authorization": "Bearer test_api_key"},
+    )
+
+    body = response.json()
+
+    assert create_response.status_code == 200
+    assert response.status_code == 200
+    assert body["id"] == create_response.json()["id"]
+    assert body["merchant_order_id"] == "12345"
+    assert body["amount_kopecks"] == 1600000
+    assert body["status"] == "pending"
+    assert body["description"] == "get by merchant order id"
+
+
+def test_get_payment_by_merchant_order_id_not_found(client: TestClient, api_key: ApiKey):
+    _ = api_key
+    response: httpx.Response = client.get(
+        "/api/v1/payments/by-order/12345",
+        headers={"Authorization": "Bearer test_api_key"},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Payment not found"}
+
