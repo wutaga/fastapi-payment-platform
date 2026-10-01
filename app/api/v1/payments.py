@@ -1,21 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_api_key
 from app.db.dependencies import get_db
-from app.models import ApiKey, Payment
+from app.models import ApiKey
 from app.schemas.payment import PaymentCreate, PaymentResponse
-from app.services.payments import payment_matches_create_data
+from app.services.payments import (
+    create_payment_in_session,
+    find_payment_by_id,
+    find_payment_by_merchant_order_id,
+    payment_matches_create_data,
+)
 
 router = APIRouter(prefix="/payments", tags=["payments"])
-
-
-def _get_payment_or_404(db: Session, stmt) -> Payment:
-    payment = db.execute(stmt).scalar_one_or_none()
-    if payment is None:
-        raise HTTPException(status_code=404, detail="Payment not found")
-    return payment
 
 
 @router.post("", response_model=PaymentResponse)
@@ -24,11 +21,11 @@ def create_payment(
     current_api_key: ApiKey = Depends(get_api_key),
     db: Session = Depends(get_db),
 ) -> PaymentResponse:
-    stmt = select(Payment).where(
-        Payment.organization_id == current_api_key.organization_id,
-        Payment.merchant_order_id == payload.merchant_order_id,
+    existing_payment = find_payment_by_merchant_order_id(
+        db=db,
+        organization_id=current_api_key.organization_id,
+        merchant_order_id=payload.merchant_order_id,
     )
-    existing_payment = db.execute(stmt).scalar_one_or_none()
     if existing_payment is not None:
         same_payment_data = payment_matches_create_data(
             existing_payment,
@@ -41,14 +38,14 @@ def create_payment(
                 detail="Payment already exists with different data",
             )
         return existing_payment
-    payment = Payment(
+    payment = create_payment_in_session(
+        db=db,
         organization_id=current_api_key.organization_id,
         api_key_id=current_api_key.id,
         amount_kopecks=payload.amount_kopecks,
         merchant_order_id=payload.merchant_order_id,
         description=payload.description,
     )
-    db.add(payment)
     db.commit()
     db.refresh(payment)
     return payment
@@ -60,11 +57,14 @@ def get_payment_by_merchant_order_id(
     current_api_key: ApiKey = Depends(get_api_key),
     db: Session = Depends(get_db),
 ) -> PaymentResponse:
-    stmt = select(Payment).where(
-        Payment.organization_id == current_api_key.organization_id,
-        Payment.merchant_order_id == merchant_order_id,
-    )
-    return _get_payment_or_404(db, stmt)
+    payment = find_payment_by_merchant_order_id(
+    db=db,
+    organization_id=current_api_key.organization_id,
+    merchant_order_id=merchant_order_id,
+)
+    if payment is None:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    return payment
 
 
 @router.get("/{payment_id}", response_model=PaymentResponse)
@@ -73,8 +73,11 @@ def get_payment(
     current_api_key: ApiKey = Depends(get_api_key),
     db: Session = Depends(get_db),
 ) -> PaymentResponse:
-    stmt = select(Payment).where(
-        Payment.id == payment_id,
-        Payment.organization_id == current_api_key.organization_id,
+    payment = find_payment_by_id(
+        db=db,
+        organization_id=current_api_key.organization_id,
+        payment_id=payment_id,
     )
-    return _get_payment_or_404(db, stmt)
+    if payment is None:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    return payment
