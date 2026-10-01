@@ -6,6 +6,7 @@ from app.api.dependencies import get_api_key
 from app.db.dependencies import get_db
 from app.models import ApiKey, Payment
 from app.schemas.payment import PaymentCreate, PaymentResponse
+from app.services.payments import payment_matches_create_data
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
@@ -29,9 +30,10 @@ def create_payment(
     )
     existing_payment = db.execute(stmt).scalar_one_or_none()
     if existing_payment is not None:
-        same_payment_data = (
-            existing_payment.amount_kopecks == payload.amount_kopecks
-            and existing_payment.description == payload.description
+        same_payment_data = payment_matches_create_data(
+            existing_payment,
+            amount_kopecks=payload.amount_kopecks,
+            description=payload.description,
         )
         if not same_payment_data:
             raise HTTPException(
