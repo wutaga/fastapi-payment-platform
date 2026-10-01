@@ -223,3 +223,54 @@ def test_get_payment_by_merchant_order_id_not_found(client: TestClient, api_key:
     assert response.status_code == 404
     assert response.json() == {"detail": "Payment not found"}
 
+
+def test_get_payment_by_id_without_authorization(
+    client: TestClient,
+    api_key: ApiKey,
+):
+    _ = api_key
+
+    create_response: httpx.Response = client.post(
+        "/api/v1/payments",
+        headers={"Authorization": "Bearer test_api_key"},
+        json={
+            "merchant_order_id": "123DCX-3241SS",
+            "amount_kopecks": 100_000_000,
+            "description": "test_payment",
+        },
+    )
+    created_response_body = create_response.json()
+    payment_id = created_response_body["id"]
+
+    get_response: httpx.Response = client.get(
+        f"/api/v1/payments/{payment_id}",
+    )
+
+    assert create_response.status_code == 200
+    assert get_response.status_code == 401
+    assert get_response.json() == {"detail": "Not authenticated"}
+
+def test_get_payment_by_order_id_without_authorization(
+    client: TestClient,
+    api_key: ApiKey,
+):
+    _ = api_key
+    order_id = "123DCX-3241SS-0001"
+
+    create_response: httpx.Response = client.post(
+        "/api/v1/payments",
+        headers={"Authorization": "Bearer test_api_key"},
+        json={
+            "merchant_order_id": order_id,
+            "amount_kopecks": 99_000_000,
+            "description": "test_payment",
+        },
+    )
+    get_response: httpx.Response = client.get(
+        f"/api/v1/payments/by-order/{order_id}",
+    )
+
+    assert create_response.status_code == 200
+    assert get_response.status_code == 401
+    assert get_response.json() == {"detail": "Not authenticated"}
+
