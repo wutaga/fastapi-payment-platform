@@ -1,3 +1,6 @@
+from collections.abc import Callable, Generator
+
+import httpx
 import pytest
 from dotenv import dotenv_values
 from fastapi.testclient import TestClient
@@ -20,7 +23,7 @@ TestingSessionLocal = sessionmaker(bind=test_engine)
 
 
 @pytest.fixture()
-def db():
+def db() -> Generator:
     Base.metadata.create_all(bind=test_engine)
     session = TestingSessionLocal()
     try:
@@ -31,7 +34,7 @@ def db():
 
 
 @pytest.fixture()
-def client(db):
+def client(db) -> Generator[TestClient]:
     def override_get_db():
         try:
             yield db
@@ -48,7 +51,7 @@ def client(db):
 
 
 @pytest.fixture()
-def api_key(db):
+def api_key(db) -> ApiKey:
     organization = Organization(name="Test Merchant")
     db.add(organization)
     db.flush()
@@ -63,3 +66,48 @@ def api_key(db):
     db.refresh(api_key)
 
     return api_key
+
+
+@pytest.fixture()
+def create_api_key(db) -> Callable[[str, str, str], ApiKey]:
+    def _create_api_key(
+        organization_name: str,
+        api_key_name: str,
+        raw_api_key: str,
+    ) -> ApiKey:
+        organization = Organization(name=organization_name)
+        db.add(organization)
+        db.flush()
+        api_key = ApiKey(
+            organization_id=organization.id,
+            name=api_key_name,
+            secret_hash=hash_api_key(raw_api_key),
+        )
+        db.add(api_key)
+        db.commit()
+        return api_key
+
+    return _create_api_key
+
+
+@pytest.fixture()
+def create_payment(client: TestClient):
+    def _create_payment(
+        merchant_order_id: str,
+        amount_kopecks: int,
+        description: str | None,
+        raw_api_key: str = "test_api_key",
+    ) -> httpx.Response:
+        response = client.post(
+            "/api/v1/payments",
+            headers={"Authorization": f"Bearer {raw_api_key}"},
+            json={
+                "merchant_order_id": merchant_order_id,
+                "amount_kopecks": amount_kopecks,
+                "description": description,
+            },
+        )
+        return response
+
+    return _create_payment
+
