@@ -15,6 +15,9 @@ Merchant backend отправляет запрос в нашу систему, �
 система определяет организацию по ключу и создает платеж со статусом
 `pending`.
 
+Следующий этап MVP - возвраты (`Refund`) для успешно обработанных платежей.
+На первом шаге поддерживается только один полный refund на один payment.
+
 ## Таблицы
 
 ### Organization
@@ -51,6 +54,25 @@ API key, с помощью которого backend организации об�
 - `status`
 - `merchant_order_id`
 - `description`
+- `created_at`
+- `updated_at`
+- `processed_at`
+
+### Refund
+
+Возврат платежа.
+
+В первой версии refund создается только для платежа со статусом `succeeded` и
+только на полную сумму платежа. На один payment может быть максимум один refund.
+
+Поля:
+
+- `id`
+- `organization_id`
+- `payment_id`
+- `amount_kopecks`
+- `status`
+- `reason`
 - `created_at`
 - `updated_at`
 - `processed_at`
@@ -97,9 +119,27 @@ API key, с помощью которого backend организации об�
 | updated_at          |                                     |
 | processed_at        |                                     |
 +---------------------+-------------------------------------+
+        | 1
+        |
+        | payments.id -> refunds.payment_id
+        | 0..1
+        v
++-----------------------------------------------------------+
+| refunds                                                   |
++---------------------+-------------------------------------+
+| id                  | PK                                  |
+| organization_id     | FK -> organizations.id              |
+| payment_id          | FK -> payments.id, UNIQUE           |
+| amount_kopecks      |                                     |
+| status              |                                     |
+| reason              |                                     |
+| created_at          |                                     |
+| updated_at          |                                     |
+| processed_at        |                                     |
++---------------------+-------------------------------------+
         ^
         | many
-        | organizations.id -> payments.organization_id
+        | organizations.id -> refunds.organization_id
         | 1
 +-----------------------------------------------------------+
 | organizations                                             |
@@ -111,6 +151,8 @@ API key, с помощью которого backend организации об�
 - `api_keys.organization_id` ссылается на `organizations.id`.
 - `payments.organization_id` ссылается на `organizations.id`.
 - `payments.api_key_id` ссылается на `api_keys.id`.
+- `refunds.organization_id` ссылается на `organizations.id`.
+- `refunds.payment_id` ссылается на `payments.id` и уникален.
 
 ## Merchant API v1
 
@@ -120,6 +162,7 @@ Endpoint'ы для backend'а организации.
 POST /api/v1/payments
 GET /api/v1/payments/{payment_id}
 GET /api/v1/payments/by-order/{merchant_order_id}
+POST /api/v1/payments/{payment_id}/refund
 ```
 
 Авторизация:
@@ -204,6 +247,29 @@ failed -> failed
 - Если `organization_id + merchant_order_id` уже существуют, но важные данные
   отличаются, возвращается `409 Conflict`.
 
+## Правила Refund
+
+Статусы:
+
+- `pending`
+- `succeeded`
+- `failed`
+
+Правила создания:
+
+- Refund принадлежит той же `Organization`, что и исходный Payment.
+- Refund связан с одним Payment через `payment_id`.
+- На один Payment может быть максимум один Refund.
+- Refund можно создать только для Payment со статусом `succeeded`.
+- Для Payment со статусом `pending` или `failed` создание Refund возвращает
+  `409 Conflict`.
+- Refund создается на всю сумму исходного Payment.
+- `amount_kopecks` для Refund не передается merchant'ом в request body, а
+  копируется из Payment.
+- Если Refund для Payment уже существует, повторный запрос возвращает
+  существующий Refund.
+
+
 ## Internal API v1
 
 Внутренний endpoint для учебной симуляции обработки платежа.
@@ -230,3 +296,5 @@ Request body:
 
 Этот endpoint не является Merchant API. Merchant не должен сам подтверждать
 успешность своих платежей.
+
+

@@ -58,3 +58,14 @@ def find_payment_by_id(
     )
     payment = db.execute(stmt).scalar_one_or_none()
     return payment
+
+
+def find_payments_by_organization(
+    db: Session,
+    organization_id: int,
+) -> list[Payment]:
+    stmt = select(Payment).where(Payment.organization_id == organization_id).order_by(
+        Payment.id.desc()
+    )
+    payments = db.execute(stmt).scalars().all()
+    return payments

@@ -9,6 +9,7 @@ from app.services.payments import (
     create_payment_in_session,
     find_payment_by_id,
     find_payment_by_merchant_order_id,
+    find_payments_by_organization,
     payment_matches_create_data,
 )
 
@@ -51,6 +52,18 @@ def create_payment(
     return payment
 
 
+@router.get("", response_model=list[PaymentResponse])
+def get_payments_by_organization(
+    current_api_key: ApiKey = Depends(get_api_key),
+    db: Session = Depends(get_db),
+) -> list[PaymentResponse]:
+    payments = find_payments_by_organization(
+        db=db,
+        organization_id=current_api_key.organization_id,
+    )
+    return payments
+
+
 @router.get("/by-order/{merchant_order_id}", response_model=PaymentResponse)
 def get_payment_by_merchant_order_id(
     merchant_order_id: str,
@@ -58,10 +71,10 @@ def get_payment_by_merchant_order_id(
     db: Session = Depends(get_db),
 ) -> PaymentResponse:
     payment = find_payment_by_merchant_order_id(
-    db=db,
-    organization_id=current_api_key.organization_id,
-    merchant_order_id=merchant_order_id,
-)
+        db=db,
+        organization_id=current_api_key.organization_id,
+        merchant_order_id=merchant_order_id,
+    )
     if payment is None:
         raise HTTPException(status_code=404, detail="Payment not found")
     return payment

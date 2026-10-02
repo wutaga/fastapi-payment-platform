@@ -198,38 +198,6 @@ def test_create_payment_missing_merchant_order_id_returns_422(
     assert response.json()["detail"][0]["loc"] == ["body", "merchant_order_id"]
 
 
-def test_create_payment_invalid_api_key(client: TestClient, api_key):
-    _ = api_key
-    response: httpx.Response = client.post(
-        "/api/v1/payments",
-        headers={"Authorization": "Bearer wrong_key"},
-        json={
-            "merchant_order_id": "order_test_1",
-            "amount_kopecks": 150000,
-            "description": "test",
-        },
-    )
-
-    body = response.json()
-
-    assert response.status_code == 401
-    assert body["detail"] == "Invalid API key"
-
-
-def test_create_payment_without_authorization(client: TestClient):
-    response: httpx.Response = client.post(
-        "/api/v1/payments",
-        json={
-            "merchant_order_id": "order_test_1",
-            "amount_kopecks": 150000,
-            "description": "test",
-        },
-    )
-
-    assert response.status_code == 401
-    assert response.json() == {"detail": "Not authenticated"}
-
-
 @pytest.mark.parametrize("amount_kopecks", [5_000, 100_000_000])
 def test_create_payment_amount_boundary_values_success(
     api_key,
@@ -284,6 +252,38 @@ def test_create_payment_invalid_amount(client, api_key, amount_kopecks: int):
     assert response.status_code == 422
 
 
+def test_create_payment_invalid_api_key(client: TestClient, api_key):
+    _ = api_key
+    response: httpx.Response = client.post(
+        "/api/v1/payments",
+        headers={"Authorization": "Bearer wrong_key"},
+        json={
+            "merchant_order_id": "order_test_1",
+            "amount_kopecks": 150000,
+            "description": "test",
+        },
+    )
+
+    body = response.json()
+
+    assert response.status_code == 401
+    assert body["detail"] == "Invalid API key"
+
+
+def test_create_payment_without_authorization(client: TestClient):
+    response: httpx.Response = client.post(
+        "/api/v1/payments",
+        json={
+            "merchant_order_id": "order_test_1",
+            "amount_kopecks": 150000,
+            "description": "test",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Not authenticated"}
+
+
 def test_create_payment_duplicate_same_data_returns_existing_payment(
     api_key: ApiKey,
     create_payment,
@@ -329,6 +329,86 @@ def test_create_payment_duplicate_same_merchant_order_id_but_different_amount(
     assert response_1.status_code == 200
     assert response_2.status_code == 409
     assert response_2.json() == {"detail": "Payment already exists with different data"}
+
+
+# List payments GET /api/v1/payments
+
+
+def test_list_payments_success(
+    client: TestClient,
+    api_key: ApiKey,
+    create_payment,
+):
+    _ = api_key
+
+    older_payment_response = create_payment(
+        merchant_order_id="list_payments_older",
+        amount_kopecks=10_000,
+        description="older payment",
+    )
+    newer_payment_response = create_payment(
+        merchant_order_id="list_payments_newer",
+        amount_kopecks=20_000,
+        description="newer payment",
+    )
+
+    response: httpx.Response = client.get(
+        "/api/v1/payments",
+        headers={"Authorization": "Bearer test_api_key"},
+    )
+    response_body = response.json()
+
+    assert response.status_code == 200
+    assert len(response_body) == 2
+    assert response_body[0]["id"] == newer_payment_response.json()["id"]
+    assert response_body[1]["id"] == older_payment_response.json()["id"]
+    assert response_body[0]["merchant_order_id"] == "list_payments_newer"
+    assert response_body[1]["merchant_order_id"] == "list_payments_older"
+
+
+def test_list_payments_without_authorization_returns_401(client: TestClient):
+    response: httpx.Response = client.get("/api/v1/payments")
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Not authenticated"}
+
+
+def test_list_payments_returns_only_current_merchant_payments(
+    client: TestClient,
+    api_key: ApiKey,
+    create_api_key,
+    create_payment,
+):
+    _ = api_key
+    create_api_key(
+        organization_name="Other Merchant",
+        api_key_name="Other API key",
+        raw_api_key="other_api_key",
+    )
+
+    merchant_a_payment_response = create_payment(
+        merchant_order_id="merchant_a_list_payment",
+        amount_kopecks=10_000,
+        description="merchant A payment",
+    )
+    merchant_b_payment_response = create_payment(
+        merchant_order_id="merchant_b_list_payment",
+        amount_kopecks=20_000,
+        description="merchant B payment",
+        raw_api_key="other_api_key",
+    )
+
+    response: httpx.Response = client.get(
+        "/api/v1/payments",
+        headers={"Authorization": "Bearer other_api_key"},
+    )
+    response_body = response.json()
+
+    returned_payment_ids = [payment["id"] for payment in response_body]
+
+    assert response.status_code == 200
+    assert returned_payment_ids == [merchant_b_payment_response.json()["id"]]
+    assert merchant_a_payment_response.json()["id"] not in returned_payment_ids
 
 
 # Get payment by id /api/v1/payments/{payment_id}
