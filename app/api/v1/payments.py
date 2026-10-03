@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_api_key
@@ -56,10 +58,16 @@ def create_payment(
 def get_payments_by_organization(
     current_api_key: ApiKey = Depends(get_api_key),
     db: Session = Depends(get_db),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    status: Literal["pending", "succeeded", "failed"] | None = None,
 ) -> list[PaymentResponse]:
     payments = find_payments_by_organization(
         db=db,
         organization_id=current_api_key.organization_id,
+        limit=limit,
+        offset=offset,
+        status=status,
     )
     return payments
 

@@ -110,4 +110,3 @@ def create_payment(client: TestClient):
         return response
 
     return _create_payment
-

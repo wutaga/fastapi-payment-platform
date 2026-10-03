@@ -160,6 +160,7 @@ Endpoint'ы для backend'а организации.
 
 ```text
 POST /api/v1/payments
+GET /api/v1/payments
 GET /api/v1/payments/{payment_id}
 GET /api/v1/payments/by-order/{merchant_order_id}
 POST /api/v1/payments/{payment_id}/refund
@@ -199,6 +200,48 @@ Response:
   "updated_at": "2026-09-30T12:00:00Z",
   "processed_at": null
 }
+```
+
+## Список платежей
+
+```text
+GET /api/v1/payments
+```
+
+Возвращает платежи текущей организации. Организация определяется по API key.
+Платежи сортируются по новым сначала: `id desc`.
+
+Query-параметры:
+
+- `limit` - сколько платежей вернуть. По умолчанию `20`, минимум `1`, максимум
+  `100`.
+- `offset` - сколько платежей пропустить. По умолчанию `0`, минимум `0`.
+- `status` - необязательный фильтр по статусу. Возможные значения: `pending`,
+  `succeeded`, `failed`.
+
+Примеры:
+
+```text
+GET /api/v1/payments?limit=20&offset=0
+GET /api/v1/payments?status=succeeded
+GET /api/v1/payments?status=pending&limit=10&offset=20
+```
+
+Response:
+
+```json
+[
+  {
+    "id": 10,
+    "merchant_order_id": "order_42",
+    "amount_kopecks": 150000,
+    "status": "pending",
+    "description": "Оплата заказа #42",
+    "created_at": "2026-09-30T12:00:00Z",
+    "updated_at": "2026-09-30T12:00:00Z",
+    "processed_at": null
+  }
+]
 ```
 
 ## Правила Payment
@@ -297,4 +340,23 @@ Request body:
 Этот endpoint не является Merchant API. Merchant не должен сам подтверждать
 успешность своих платежей.
 
+## Current milestone
 
+MVP v1 завершён как учебный backend milestone.
+
+На этом этапе проект помог отработать:
+
+- FastAPI endpoints;
+- SQLAlchemy models и relationships;
+- PostgreSQL и Alembic migrations;
+- API key authorization;
+- tenant isolation;
+- идемпотентное создание платежей;
+- status transitions;
+- pagination и filtering;
+- Pydantic validation;
+- pytest fixtures;
+- API/integration tests.
+
+Дальнейшее развитие проекта можно продолжить позже, если появится учебная или
+практическая необходимость.

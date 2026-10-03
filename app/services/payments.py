@@ -63,9 +63,14 @@ def find_payment_by_id(
 def find_payments_by_organization(
     db: Session,
     organization_id: int,
+    limit: int,
+    offset: int,
+    status: str | None,
 ) -> list[Payment]:
-    stmt = select(Payment).where(Payment.organization_id == organization_id).order_by(
-        Payment.id.desc()
-    )
+    stmt = select(Payment).where(Payment.organization_id == organization_id)
+    if status is not None:
+        stmt = stmt.where(Payment.status == status)
+    stmt = stmt.order_by(Payment.id.desc()).limit(limit).offset(offset)
+
     payments = db.execute(stmt).scalars().all()
     return payments

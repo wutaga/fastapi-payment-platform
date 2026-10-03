@@ -366,6 +366,111 @@ def test_list_payments_success(
     assert response_body[1]["merchant_order_id"] == "list_payments_older"
 
 
+def test_list_payments_with_limit_and_offset(
+    client: TestClient,
+    api_key: ApiKey,
+    create_payment,
+):
+    _ = api_key
+
+    create_payment(
+        merchant_order_id="list_payments_page_oldest",
+        amount_kopecks=10_000,
+        description="oldest payment",
+    )
+    middle_payment_response = create_payment(
+        merchant_order_id="list_payments_page_middle",
+        amount_kopecks=20_000,
+        description="middle payment",
+    )
+    create_payment(
+        merchant_order_id="list_payments_page_newest",
+        amount_kopecks=30_000,
+        description="newest payment",
+    )
+
+    response: httpx.Response = client.get(
+        "/api/v1/payments?limit=1&offset=1",
+        headers={"Authorization": "Bearer test_api_key"},
+    )
+    response_body = response.json()
+
+    assert response.status_code == 200
+    assert len(response_body) == 1
+    assert response_body[0]["id"] == middle_payment_response.json()["id"]
+    assert response_body[0]["merchant_order_id"] == "list_payments_page_middle"
+
+
+def test_list_payments_invalid_limit_returns_422(
+    client: TestClient,
+    api_key: ApiKey,
+):
+    _ = api_key
+
+    response: httpx.Response = client.get(
+        "/api/v1/payments?limit=101",
+        headers={"Authorization": "Bearer test_api_key"},
+    )
+    response_body = response.json()
+
+    assert response.status_code == 422
+    assert response_body["detail"][0]["loc"] == ["query", "limit"]
+
+
+def test_list_payments_filter_by_status(
+    client: TestClient,
+    api_key: ApiKey,
+    create_payment,
+):
+    _ = api_key
+
+    pending_payment_response = create_payment(
+        merchant_order_id="list_payments_pending",
+        amount_kopecks=10_000,
+        description="pending payment",
+    )
+    succeeded_payment_response = create_payment(
+        merchant_order_id="list_payments_succeeded",
+        amount_kopecks=20_000,
+        description="succeeded payment",
+    )
+    succeeded_payment_id = succeeded_payment_response.json()["id"]
+
+    process_response: httpx.Response = client.post(
+        f"/internal/payments/{succeeded_payment_id}/process",
+        json={"status": "succeeded"},
+    )
+
+    response: httpx.Response = client.get(
+        "/api/v1/payments?status=succeeded",
+        headers={"Authorization": "Bearer test_api_key"},
+    )
+    response_body = response.json()
+    returned_payment_ids = [payment["id"] for payment in response_body]
+
+    assert process_response.status_code == 200
+    assert response.status_code == 200
+    assert returned_payment_ids == [succeeded_payment_id]
+    assert pending_payment_response.json()["id"] not in returned_payment_ids
+    assert response_body[0]["status"] == "succeeded"
+
+
+def test_list_payments_invalid_status_returns_422(
+    client: TestClient,
+    api_key: ApiKey,
+):
+    _ = api_key
+
+    response: httpx.Response = client.get(
+        "/api/v1/payments?status=abc",
+        headers={"Authorization": "Bearer test_api_key"},
+    )
+    response_body = response.json()
+
+    assert response.status_code == 422
+    assert response_body["detail"][0]["loc"] == ["query", "status"]
+
+
 def test_list_payments_without_authorization_returns_401(client: TestClient):
     response: httpx.Response = client.get("/api/v1/payments")
 
@@ -545,7 +650,9 @@ def test_get_payment_by_merchant_order_id_success(
     assert body["description"] == "get by merchant order id"
 
 
-def test_get_payment_by_merchant_order_id_not_found(client: TestClient, api_key: ApiKey):
+def test_get_payment_by_merchant_order_id_not_found(
+    client: TestClient, api_key: ApiKey
+):
     _ = api_key
     response: httpx.Response = client.get(
         "/api/v1/payments/by-order/12345",
